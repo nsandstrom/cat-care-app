@@ -1,0 +1,96 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            infra/package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ── Install deps ──────────────────────────────────────────────
+      - name: Install infra deps
+        working-directory: infra
+        run: npm ci
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      # ── Deploy CDK stack ──────────────────────────────────────────
+      - name: CDK deploy
+        working-directory: infra
+        run: npx cdk deploy --require-approval never --outputs-file ../cdk-outputs.json
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          HOUSEHOLD_TOKEN: ${{ secrets.HOUSEHOLD_TOKEN }}
+
+      # ── Extract CDK outputs ───────────────────────────────────────
+      - name: Extract CDK outputs
+        id: cdk
+        run: |
+          BUCKET=$(jq -r '.CatCareStack.BucketName' cdk-outputs.json)
+          DIST_ID=$(jq -r '.CatCareStack.DistributionId' cdk-outputs.json)
+          API_URL=$(jq -r '.CatCareStack.ApiUrl' cdk-outputs.json)
+          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
+          echo "dist_id=$DIST_ID" >> $GITHUB_OUTPUT
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+
+      # ── Build + deploy frontend ───────────────────────────────────
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ steps.cdk.outputs.api_url }}
+          NEXT_PUBLIC_HOUSEHOLD_TOKEN: ${{ secrets.HOUSEHOLD_TOKEN }}
+
+      - name: Upload to S3
+        run: |
+          aws s3 sync frontend/out/ s3://${{ steps.cdk.outputs.bucket }} \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "*.html" \
+            --exclude "manifest.json"
+          aws s3 sync frontend/out/ s3://${{ steps.cdk.outputs.bucket }} \
+            --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --include "*.html" \
+            --include "manifest.json"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.cdk.outputs.dist_id }} \
+            --paths "/*"
