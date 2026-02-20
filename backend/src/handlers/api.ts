@@ -35,10 +35,19 @@ export const handler = async (
       return await getTasks();
     }
 
-    // PUT /tasks/{taskId}
+    // POST /tasks
+    if (method === 'POST' && rawPath === '/tasks') {
+      return await createTask(event.body ?? '{}');
+    }
+
+    // PUT/DELETE /tasks/{taskId}
     const taskUpdateMatch = rawPath.match(/^\/tasks\/([^/]+)$/);
     if (method === 'PUT' && taskUpdateMatch) {
       return await updateTask(taskUpdateMatch[1], event.body ?? '{}');
+    }
+
+    if (method === 'DELETE' && taskUpdateMatch) {
+      return await deleteTask(taskUpdateMatch[1]);
     }
 
     // GET /checklist/{date}
@@ -146,6 +155,46 @@ async function updateTask(
   );
 
   return json(200, { task: taskRecordToTask(result.Item as TaskRecord) });
+}
+
+async function createTask(body: string): Promise<APIGatewayProxyResultV2> {
+  let task: Task;
+  try {
+    task = JSON.parse(body);
+  } catch {
+    return json(400, { error: 'Invalid JSON body' });
+  }
+
+  if (!task.taskId || !task.name || !task.section || !task.windowStart || !task.windowEnd) {
+    return json(400, { error: 'Missing required fields: taskId, name, section, windowStart, windowEnd' });
+  }
+
+  const record: TaskRecord = {
+    PK: 'TASK',
+    SK: `task#${task.taskId}`,
+    taskId: task.taskId,
+    name: task.name,
+    emoji: task.emoji ?? '',
+    section: task.section,
+    windowStart: task.windowStart,
+    windowEnd: task.windowEnd,
+    ...(task.notes ? { notes: task.notes } : {}),
+  };
+
+  await db.send(new PutCommand({ TableName: TABLE_NAME, Item: record }));
+
+  return json(201, { task: taskRecordToTask(record) });
+}
+
+async function deleteTask(taskId: string): Promise<APIGatewayProxyResultV2> {
+  await db.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: { PK: 'TASK', SK: `task#${taskId}` },
+    }),
+  );
+
+  return json(200, { taskId, deleted: true });
 }
 
 async function getChecklist(date: string): Promise<APIGatewayProxyResultV2> {

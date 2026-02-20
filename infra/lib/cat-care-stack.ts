@@ -115,8 +115,8 @@ export class CatCareStack extends cdk.Stack {
     );
 
     // Routes
-    httpApi.addRoutes({ path: '/tasks', methods: [apigatewayv2.HttpMethod.GET], integration: apiIntegration });
-    httpApi.addRoutes({ path: '/tasks/{taskId}', methods: [apigatewayv2.HttpMethod.PUT], integration: apiIntegration });
+    httpApi.addRoutes({ path: '/tasks', methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST], integration: apiIntegration });
+    httpApi.addRoutes({ path: '/tasks/{taskId}', methods: [apigatewayv2.HttpMethod.PUT, apigatewayv2.HttpMethod.DELETE], integration: apiIntegration });
     httpApi.addRoutes({ path: '/checklist/{date}', methods: [apigatewayv2.HttpMethod.GET], integration: apiIntegration });
     httpApi.addRoutes({ path: '/checklist/{date}/{taskId}', methods: [apigatewayv2.HttpMethod.POST, apigatewayv2.HttpMethod.DELETE], integration: apiIntegration });
     httpApi.addRoutes({ path: '/history', methods: [apigatewayv2.HttpMethod.GET], integration: apiIntegration });
@@ -133,6 +133,22 @@ export class CatCareStack extends cdk.Stack {
       description: 'OAC for Cat Care frontend',
     });
 
+    const urlRewriteFn = new cloudfront.Function(this, 'UrlRewrite', {
+      comment: 'Rewrite directory paths to index.html for Next.js static export',
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var uri = event.request.uri;
+  if (uri.endsWith('/')) {
+    event.request.uri += 'index.html';
+  } else if (!uri.includes('.')) {
+    event.request.uri += '/index.html';
+  }
+  return event.request;
+}
+`),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     const distribution = new cloudfront.Distribution(this, 'SiteDistribution', {
       comment: 'Cat Care frontend',
       defaultRootObject: 'index.html',
@@ -143,6 +159,10 @@ export class CatCareStack extends cdk.Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         compress: true,
+        functionAssociations: [{
+          function: urlRewriteFn,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
       },
       errorResponses: [
         {

@@ -56,4 +56,17 @@ export const api = {
   getHistory(): Promise<unknown> {
     return request('/history');
   },
+
+  createTask(task: Task): Promise<{ task: Task }> {
+    return request('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(task),
+    });
+  },
+
+  deleteTask(taskId: string): Promise<{ taskId: string; deleted: boolean }> {
+    return request(`/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  },
 };
