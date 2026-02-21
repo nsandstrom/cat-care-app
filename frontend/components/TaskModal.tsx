@@ -22,7 +22,6 @@ export default function TaskModal({ task, onSave, onClose }: Props) {
 
   const [emoji, setEmoji] = useState(task?.emoji ?? '');
   const [name, setName] = useState(task?.name ?? '');
-  const [section, setSection] = useState<string>(task?.section ?? 'Morning');
   const [windowStart, setWindowStart] = useState(task?.windowStart ?? '08:00');
   const [windowEnd, setWindowEnd] = useState(task?.windowEnd ?? '09:00');
   const [notes, setNotes] = useState(task?.notes ?? '');
@@ -49,7 +48,6 @@ export default function TaskModal({ task, onSave, onClose }: Props) {
       taskId,
       name: name.trim(),
       emoji: emoji.trim(),
-      section,
       windowStart,
       windowEnd,
       notes: notes.trim() || undefined,
@@ -97,20 +95,6 @@ export default function TaskModal({ task, onSave, onClose }: Props) {
                 style={{ borderColor: 'var(--soft)', background: 'var(--warm)' }}
               />
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--mid)' }}>Section *</label>
-            <select
-              value={section}
-              onChange={(e) => setSection(e.target.value)}
-              className="rounded-lg border px-3 py-2 focus:outline-none"
-              style={{ borderColor: 'var(--soft)', background: 'var(--warm)' }}
-            >
-              <option>Morning</option>
-              <option>Midday</option>
-              <option>Evening</option>
-            </select>
           </div>
 
           <div className="flex gap-3">

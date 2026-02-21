@@ -2,10 +2,16 @@ export interface Task {
   taskId: string;
   name: string;
   emoji: string;
-  section: string;
   windowStart: string; // "HH:MM"
   windowEnd: string;   // "HH:MM"
   notes?: string;
+}
+
+export function getSectionFromTime(windowStart: string): string {
+  const [h] = windowStart.split(':').map(Number);
+  if (h >= 18) return 'Evening';
+  if (h >= 12) return 'Midday';
+  return 'Morning';
 }
 
 export interface ChecklistItem extends Task {

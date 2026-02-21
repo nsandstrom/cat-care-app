@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../lib/api';
 import type { ChecklistItem } from '../lib/types';
+import { getSectionFromTime } from '../lib/types';
 import { ProgressBar } from '../components/ProgressBar';
 import { Timeline } from '../components/Timeline';
 import { TaskCard } from '../components/TaskCard';
@@ -16,11 +17,12 @@ function getTodayDate(): string {
 function groupBySection(checklist: ChecklistItem[]): { section: string; items: ChecklistItem[] }[] {
   const sections = new Map<string, ChecklistItem[]>();
   for (const item of checklist) {
-    const existing = sections.get(item.section);
+    const section = getSectionFromTime(item.windowStart);
+    const existing = sections.get(section);
     if (existing) {
       existing.push(item);
     } else {
-      sections.set(item.section, [item]);
+      sections.set(section, [item]);
     }
   }
   return Array.from(sections.entries()).map(([section, items]) => ({ section, items }));

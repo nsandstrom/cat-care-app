@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '../../lib/api';
 import type { Task } from '../../lib/types';
+import { getSectionFromTime } from '../../lib/types';
 import TaskModal from '../../components/TaskModal';
 
 export default function AdminPage() {
@@ -123,7 +124,7 @@ export default function AdminPage() {
                   {task.name}
                 </p>
                 <p className="mt-0.5 text-xs" style={{ color: 'var(--mid)', fontFamily: 'var(--font-mono)' }}>
-                  {task.section} · {task.windowStart}–{task.windowEnd}
+                  {getSectionFromTime(task.windowStart)} · {task.windowStart}–{task.windowEnd}
                 </p>
                 {task.notes && (
                   <p className="mt-1 text-xs" style={{ color: 'var(--mid)' }}>{task.notes}</p>
