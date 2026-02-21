@@ -113,10 +113,13 @@ export default function HomePage() {
     await fetchChecklist();
   }, [checklist, fetchChecklist]);
 
-  const completedCount = checklist.filter((c) => c.done).length;
+  const [showCompleted, setShowCompleted] = useState(false);
+
+  const completedItems = checklist.filter((c) => c.done);
+  const completedCount = completedItems.length;
   const totalTasks = checklist.length;
   const allDone = totalTasks > 0 && completedCount === totalTasks;
-  const sections = groupBySection(checklist);
+  const sections = groupBySection(checklist.filter((c) => !c.done));
 
   const dateLabel = now.toLocaleDateString('en-GB', {
     weekday: 'long',
@@ -160,23 +163,49 @@ export default function HomePage() {
         {loading ? (
           <div className="px-4 mt-6 text-center text-mid text-sm">Loading…</div>
         ) : (
-          sections.map(({ section, items }) => (
-            <div key={section} className="px-4 pt-5">
-              <div className="flex items-center gap-2 text-[0.7rem] font-medium uppercase tracking-widest text-mid px-1 mb-2">
-                {section}
-                <span className="flex-1 h-px bg-soft" />
+          <>
+            {/* Completed tasks — collapsible */}
+            {completedItems.length > 0 && (
+              <div className="px-4 pt-5">
+                <button
+                  onClick={() => setShowCompleted((v) => !v)}
+                  className="flex w-full items-center gap-2 text-[0.7rem] font-medium uppercase tracking-widest text-mid px-1 mb-2"
+                >
+                  <span>✓ Done ({completedItems.length})</span>
+                  <span className="flex-1 h-px bg-soft" />
+                  <span className="text-[0.6rem]">{showCompleted ? '▲' : '▼'}</span>
+                </button>
+                {showCompleted && completedItems.map((item) => (
+                  <TaskCard
+                    key={item.taskId}
+                    item={item}
+                    now={now}
+                    onToggle={handleToggle}
+                    loading={toggleLoading.has(item.taskId)}
+                  />
+                ))}
               </div>
-              {items.map((item) => (
-                <TaskCard
-                  key={item.taskId}
-                  item={item}
-                  now={now}
-                  onToggle={handleToggle}
-                  loading={toggleLoading.has(item.taskId)}
-                />
-              ))}
-            </div>
-          ))
+            )}
+
+            {/* Remaining sections */}
+            {sections.map(({ section, items }) => (
+              <div key={section} className="px-4 pt-5">
+                <div className="flex items-center gap-2 text-[0.7rem] font-medium uppercase tracking-widest text-mid px-1 mb-2">
+                  {section}
+                  <span className="flex-1 h-px bg-soft" />
+                </div>
+                {items.map((item) => (
+                  <TaskCard
+                    key={item.taskId}
+                    item={item}
+                    now={now}
+                    onToggle={handleToggle}
+                    loading={toggleLoading.has(item.taskId)}
+                  />
+                ))}
+              </div>
+            ))}
+          </>
         )}
       </div>
 

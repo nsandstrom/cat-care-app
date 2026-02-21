@@ -29,7 +29,7 @@ function windowToX(time: string): number {
 const STATUS_STYLES: Record<TaskStatus, string> = {
   pending: 'bg-white border-soft text-brown',
   'active-window': 'bg-[#fff8f0] border-accent shadow-[0_0_0_3px_rgba(224,123,57,0.12)]',
-  done: 'bg-[#eef7f2] border-[#a8d8bc] text-mid line-through decoration-green',
+  done: 'bg-[#eeebe6] border-[#d5d0ca] text-[#c0b8b0] line-through opacity-50',
   overdue: 'bg-[#fff0f0] border-[#f0a0a0] text-red',
 };
 
