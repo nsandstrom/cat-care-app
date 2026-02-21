@@ -6,6 +6,10 @@ import { getTaskStatus } from '../lib/types';
 
 const PX_PER_HOUR = 64;
 const TOTAL_WIDTH = 24 * PX_PER_HOUR; // 1536px
+const ROW_TOP = 36;      // px from container top where first task row starts
+const ROW_PITCH = 24;    // px between row starts (task height 36px → 12px overlap)
+const TASK_H = 36;       // matches h-9
+const ROW_BOTTOM_PAD = 10;
 
 interface TimelineProps {
   checklist: ChecklistItem[];
@@ -73,6 +77,24 @@ export function Timeline({ checklist, now, onToggle }: TimelineProps) {
   const nowX = hourToX(nowH);
   const nowLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+  // Greedy row packing: sort by start time, assign each task to the first row
+  // whose last task has already ended.
+  const sorted = [...checklist].sort((a, b) => a.windowStart.localeCompare(b.windowStart));
+  const rowEndTimes: string[] = [];
+  const taskRowMap = new Map<string, number>();
+  for (const item of sorted) {
+    let row = rowEndTimes.findIndex((end) => end <= item.windowStart);
+    if (row === -1) {
+      row = rowEndTimes.length;
+      rowEndTimes.push(item.windowEnd);
+    } else {
+      rowEndTimes[row] = item.windowEnd;
+    }
+    taskRowMap.set(item.taskId, row);
+  }
+  const numRows = Math.max(1, rowEndTimes.length);
+  const containerHeight = ROW_TOP + (numRows - 1) * ROW_PITCH + TASK_H + ROW_BOTTOM_PAD;
+
   return (
     <div className="relative mt-4 pb-1">
       <div
@@ -80,7 +102,7 @@ export function Timeline({ checklist, now, onToggle }: TimelineProps) {
         className="hide-scrollbar overflow-x-auto px-5 pb-2.5 cursor-grab select-none"
         onMouseDown={onMouseDown}
       >
-        <div className="relative" style={{ width: TOTAL_WIDTH, height: 90 }}>
+        <div className="relative" style={{ width: TOTAL_WIDTH, height: containerHeight }}>
           {/* Hour ticks */}
           {Array.from({ length: 25 }, (_, h) => (
             <div key={h}>
@@ -105,12 +127,13 @@ export function Timeline({ checklist, now, onToggle }: TimelineProps) {
             const left = windowToX(item.windowStart);
             const right = windowToX(item.windowEnd);
             const width = right - left;
+            const top = ROW_TOP + (taskRowMap.get(item.taskId) ?? 0) * ROW_PITCH;
 
             return (
               <div
                 key={item.taskId}
-                className={`absolute top-9 h-9 rounded-lg flex items-center gap-1 px-2.5 border-[1.5px] cursor-pointer transition-transform active:scale-y-95 overflow-hidden whitespace-nowrap ${STATUS_STYLES[status]}`}
-                style={{ left, width }}
+                className={`absolute h-9 rounded-lg flex items-center gap-1 px-2.5 border-[1.5px] cursor-pointer transition-transform active:scale-y-95 overflow-hidden whitespace-nowrap ${STATUS_STYLES[status]}`}
+                style={{ left, width, top }}
                 onClick={() => onToggle(item.taskId)}
               >
                 <span className="text-sm flex-shrink-0">{item.emoji}</span>
