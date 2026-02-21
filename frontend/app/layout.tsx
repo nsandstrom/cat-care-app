@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Fraunces, DM_Sans, DM_Mono } from 'next/font/google';
 import './globals.css';
+import AuthGate from '../components/AuthGate';
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -56,7 +57,7 @@ export default function RootLayout({
       className={`${fraunces.variable} ${dmSans.variable} ${dmMono.variable}`}
     >
       <body className="bg-cream text-brown font-sans max-w-[430px] mx-auto min-h-screen pb-10">
-        {children}
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );

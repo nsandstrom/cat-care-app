@@ -4,7 +4,7 @@ export interface Task {
   taskId: string;       // e.g. "am-food"
   name: string;         // e.g. "Morning food"
   emoji: string;        // e.g. "🍽️"
-  section: string;      // e.g. "Morning"
+  section?: string;     // deprecated — derived from windowStart on the frontend
   windowStart: string;  // "HH:MM" e.g. "07:00"
   windowEnd: string;    // "HH:MM" e.g. "09:00"
   notes?: string;       // e.g. "Wet + dry portions"
@@ -37,7 +37,7 @@ export interface TaskRecord {
   taskId: string;
   name: string;
   emoji: string;
-  section: string;
+  section?: string;     // kept for backward compat with existing records
   windowStart: string;
   windowEnd: string;
   notes?: string;

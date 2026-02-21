@@ -41,6 +41,7 @@ export class CatCareStack extends cdk.Stack {
     const lambdaEnv: Record<string, string> = {
       TABLE_NAME: table.tableName,
       HOUSEHOLD_TOKEN: process.env.HOUSEHOLD_TOKEN ?? householdTokenParam.stringValue,
+      APP_PASSWORD: process.env.APP_PASSWORD ?? process.env.HOUSEHOLD_TOKEN ?? 'change-me-after-deploy',
     };
 
     // ── API Lambda ────────────────────────────────────────────────
@@ -115,6 +116,7 @@ export class CatCareStack extends cdk.Stack {
     );
 
     // Routes
+    httpApi.addRoutes({ path: '/auth', methods: [apigatewayv2.HttpMethod.POST], integration: apiIntegration });
     httpApi.addRoutes({ path: '/tasks', methods: [apigatewayv2.HttpMethod.GET, apigatewayv2.HttpMethod.POST], integration: apiIntegration });
     httpApi.addRoutes({ path: '/tasks/{taskId}', methods: [apigatewayv2.HttpMethod.PUT, apigatewayv2.HttpMethod.DELETE], integration: apiIntegration });
     httpApi.addRoutes({ path: '/checklist/{date}', methods: [apigatewayv2.HttpMethod.GET], integration: apiIntegration });

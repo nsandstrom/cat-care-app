@@ -1,12 +1,17 @@
 import type { ChecklistResponse, TasksResponse, Task } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-const TOKEN = process.env.NEXT_PUBLIC_HOUSEHOLD_TOKEN ?? '';
+const TOKEN_KEY = 'hh_token';
+
+function getToken(): string {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(TOKEN_KEY) ?? '';
+}
 
 function headers(): HeadersInit {
   return {
     'Content-Type': 'application/json',
-    'X-Household-Token': TOKEN,
+    'X-Household-Token': getToken(),
   };
 }
 
@@ -15,6 +20,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { ...headers(), ...options?.headers },
   });
+
+  if (res.status === 401) {
+    // Token is invalid or expired — clear it so AuthGate shows the login screen
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(TOKEN_KEY);
+      window.location.reload();
+    }
+    throw new Error('Session expired');
+  }
 
   if (!res.ok) {
     const body = await res.text();
@@ -25,6 +39,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  async authenticate(code: string): Promise<void> {
+    const res = await fetch(`${API_URL}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) throw new Error('Invalid code');
+    const { token } = await res.json() as { token: string };
+    localStorage.setItem(TOKEN_KEY, token);
+  },
+
   getTasks(): Promise<TasksResponse> {
     return request('/tasks');
   },

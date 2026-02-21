@@ -23,11 +23,16 @@ function taskRecordToTask(r: TaskRecord): Task {
 export const handler = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const authError = requireToken(event);
-  if (authError) return authError;
-
   const method = event.requestContext.http.method.toUpperCase();
   const rawPath = event.rawPath;
+
+  // POST /auth is the only public endpoint — no token required
+  if (method === 'POST' && rawPath === '/auth') {
+    return await authHandler(event.body ?? '{}');
+  }
+
+  const authError = requireToken(event);
+  if (authError) return authError;
 
   try {
     // GET /tasks
@@ -94,13 +99,7 @@ async function getTasks(): Promise<APIGatewayProxyResultV2> {
     taskRecordToTask(item as TaskRecord),
   );
 
-  // Sort by section order then window start
-  const sectionOrder = ['Morning', 'Midday', 'Evening'];
-  tasks.sort((a, b) => {
-    const si = sectionOrder.indexOf(a.section) - sectionOrder.indexOf(b.section);
-    if (si !== 0) return si;
-    return a.windowStart.localeCompare(b.windowStart);
-  });
+  tasks.sort((a, b) => a.windowStart.localeCompare(b.windowStart));
 
   return json(200, { tasks });
 }
@@ -116,7 +115,7 @@ async function updateTask(
     return json(400, { error: 'Invalid JSON body' });
   }
 
-  const allowedFields = ['name', 'emoji', 'section', 'windowStart', 'windowEnd', 'notes'];
+  const allowedFields = ['name', 'emoji', 'windowStart', 'windowEnd', 'notes'];
   const expressionParts: string[] = [];
   const attrNames: Record<string, string> = {};
   const attrValues: Record<string, unknown> = {};
@@ -165,8 +164,8 @@ async function createTask(body: string): Promise<APIGatewayProxyResultV2> {
     return json(400, { error: 'Invalid JSON body' });
   }
 
-  if (!task.taskId || !task.name || !task.section || !task.windowStart || !task.windowEnd) {
-    return json(400, { error: 'Missing required fields: taskId, name, section, windowStart, windowEnd' });
+  if (!task.taskId || !task.name || !task.windowStart || !task.windowEnd) {
+    return json(400, { error: 'Missing required fields: taskId, name, windowStart, windowEnd' });
   }
 
   const record: TaskRecord = {
@@ -175,7 +174,6 @@ async function createTask(body: string): Promise<APIGatewayProxyResultV2> {
     taskId: task.taskId,
     name: task.name,
     emoji: task.emoji ?? '',
-    section: task.section,
     windowStart: task.windowStart,
     windowEnd: task.windowEnd,
     ...(task.notes ? { notes: task.notes } : {}),
@@ -223,12 +221,7 @@ async function getChecklist(date: string): Promise<APIGatewayProxyResultV2> {
   }
 
   const tasks = (tasksResult.Items ?? []) as TaskRecord[];
-  const sectionOrder = ['Morning', 'Midday', 'Evening'];
-  tasks.sort((a, b) => {
-    const si = sectionOrder.indexOf(a.section) - sectionOrder.indexOf(b.section);
-    if (si !== 0) return si;
-    return a.windowStart.localeCompare(b.windowStart);
-  });
+  tasks.sort((a, b) => a.windowStart.localeCompare(b.windowStart));
 
   const checklist: ChecklistItem[] = tasks.map((task) => {
     const completion = completionMap.get(task.taskId);
@@ -302,6 +295,24 @@ async function unmarkComplete(
   );
 
   return json(200, { taskId, date, done: false });
+}
+
+async function authHandler(body: string): Promise<APIGatewayProxyResultV2> {
+  const appPassword = process.env.APP_PASSWORD;
+  const householdToken = process.env.HOUSEHOLD_TOKEN;
+
+  if (!appPassword || !householdToken) {
+    return json(503, { error: 'Auth not configured' });
+  }
+
+  let parsed: { code?: string } = {};
+  try { parsed = JSON.parse(body); } catch { /* ignore bad JSON */ }
+
+  if (!parsed.code || parsed.code !== appPassword) {
+    return json(401, { error: 'Invalid code' });
+  }
+
+  return json(200, { token: householdToken });
 }
 
 async function getHistory(): Promise<APIGatewayProxyResultV2> {

@@ -57,6 +57,7 @@ jobs:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
           HOUSEHOLD_TOKEN: ${{ secrets.HOUSEHOLD_TOKEN }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
 
       # ── Extract CDK outputs ───────────────────────────────────────
       - name: Extract CDK outputs
@@ -75,7 +76,6 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: ${{ steps.cdk.outputs.api_url }}
-          NEXT_PUBLIC_HOUSEHOLD_TOKEN: ${{ secrets.HOUSEHOLD_TOKEN }}
 
       - name: Upload to S3
         run: |
