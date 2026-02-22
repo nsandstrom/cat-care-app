@@ -1,24 +1,21 @@
 /**
- * EventBridge cron handler — runs at midnight UTC.
+ * EventBridge Scheduler handler — runs at 04:00 Europe/Stockholm every day.
  *
- * For yesterday's date:
+ * For the household day that just ended (yesterday in Stockholm time):
  *  1. Query all tasks
  *  2. Query all completions for that date
  *  3. Write a SUMMARY# record (for history log)
  *
- * We do NOT delete DATE# records — they are the permanent history.
+ * DATE# completion records are kept permanently — they are the history.
  */
 
-import type { EventBridgeEvent } from 'aws-lambda';
 import { QueryCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE_NAME } from '../lib/db';
 import type { TaskRecord, CompletionRecord, SummaryRecord } from '../lib/types';
 
-export const handler = async (
-  _event: EventBridgeEvent<'Scheduled Event', unknown>,
-): Promise<void> => {
-  const yesterday = getYesterday();
-  console.log(`Running daily reset for date: ${yesterday}`);
+export const handler = async (_event: unknown): Promise<void> => {
+  const date = getPreviousHouseholdDay();
+  console.log(`Running daily summarise for date: ${date}`);
 
   // 1. Fetch all tasks
   const tasksResult = await db.send(
@@ -30,12 +27,12 @@ export const handler = async (
   );
   const tasks = (tasksResult.Items ?? []) as TaskRecord[];
 
-  // 2. Fetch completions for yesterday
+  // 2. Fetch completions for the day
   const completionsResult = await db.send(
     new QueryCommand({
       TableName: TABLE_NAME,
       KeyConditionExpression: 'PK = :pk',
-      ExpressionAttributeValues: { ':pk': `DATE#${yesterday}` },
+      ExpressionAttributeValues: { ':pk': `DATE#${date}` },
     }),
   );
   const completions = (completionsResult.Items ?? []) as CompletionRecord[];
@@ -48,9 +45,9 @@ export const handler = async (
 
   // 4. Write summary record
   const summary: SummaryRecord = {
-    PK: `SUMMARY#${yesterday}`,
+    PK: `SUMMARY#${date}`,
     SK: 'summary',
-    date: yesterday,
+    date,
     totalTasks: tasks.length,
     completedCount: completions.length,
     missedTaskIds,
@@ -64,14 +61,21 @@ export const handler = async (
     }),
   );
 
-  console.log(`Summary written for ${yesterday}:`, {
+  console.log(`Summary written for ${date}:`, {
     totalTasks: summary.totalTasks,
     completedCount: summary.completedCount,
     missedCount: missedTaskIds.length,
   });
 };
 
-function getYesterday(): string {
+/**
+ * Returns the date (YYYY-MM-DD) of the household day that just ended.
+ *
+ * The handler runs at 04:00 Europe/Stockholm = 02:00–03:00 UTC.
+ * At that UTC time the UTC calendar date equals the Stockholm calendar date,
+ * so subtracting one UTC day gives the correct previous household day.
+ */
+function getPreviousHouseholdDay(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);

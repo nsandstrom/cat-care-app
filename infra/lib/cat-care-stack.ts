@@ -7,8 +7,7 @@ import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrat
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as cloudfrontOrigins from 'aws-cdk-lib/aws-cloudfront-origins';
-import * as events from 'aws-cdk-lib/aws-events';
-import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
+import { CfnSchedule } from 'aws-cdk-lib/aws-scheduler';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
@@ -64,11 +63,11 @@ export class CatCareStack extends cdk.Stack {
     table.grantReadWriteData(apiLambda);
     householdTokenParam.grantRead(apiLambda);
 
-    // ── Reset Lambda ──────────────────────────────────────────────
-    const resetLambda = new lambdaNodejs.NodejsFunction(this, 'ResetHandler', {
-      functionName: 'cat-care-reset',
+    // ── Summarise Lambda ──────────────────────────────────────────
+    const summariseLambda = new lambdaNodejs.NodejsFunction(this, 'SummariseHandler', {
+      functionName: 'cat-care-summarise',
       runtime: lambda.Runtime.NODEJS_22_X,
-      entry: path.join(__dirname, '../../backend/src/handlers/reset.ts'),
+      entry: path.join(__dirname, '../../backend/src/handlers/summarise.ts'),
       handler: 'handler',
       environment: lambdaEnv,
       timeout: cdk.Duration.seconds(60),
@@ -81,16 +80,40 @@ export class CatCareStack extends cdk.Stack {
       },
     });
 
-    table.grantReadWriteData(resetLambda);
-    householdTokenParam.grantRead(resetLambda);
+    table.grantReadWriteData(summariseLambda);
+    householdTokenParam.grantRead(summariseLambda);
 
-    // EventBridge rule: midnight UTC every day
-    const midnightRule = new events.Rule(this, 'MidnightReset', {
-      ruleName: 'cat-care-midnight-reset',
-      description: 'Triggers cat care daily summary/reset at midnight UTC',
-      schedule: events.Schedule.cron({ hour: '0', minute: '0' }),
+    // IAM role for EventBridge Scheduler to invoke the Lambda
+    const schedulerRole = new iam.Role(this, 'SummariseSchedulerRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      inlinePolicies: {
+        InvokeSummarise: new iam.PolicyDocument({
+          statements: [new iam.PolicyStatement({
+            actions: ['lambda:InvokeFunction'],
+            resources: [summariseLambda.functionArn],
+          })],
+        }),
+      },
     });
-    midnightRule.addTarget(new eventsTargets.LambdaFunction(resetLambda));
+
+    // Allow scheduler service to invoke the Lambda
+    summariseLambda.addPermission('SchedulerInvoke', {
+      principal: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      sourceAccount: this.account,
+    });
+
+    // Daily summarise at 04:00 Europe/Stockholm
+    new CfnSchedule(this, 'DailySummariseSchedule', {
+      name: 'cat-care-daily-summarise',
+      description: 'Triggers cat care daily summary at 04:00 Europe/Stockholm',
+      scheduleExpression: 'cron(0 4 * * ? *)',
+      scheduleExpressionTimezone: 'Europe/Stockholm',
+      flexibleTimeWindow: { mode: 'OFF' },
+      target: {
+        arn: summariseLambda.functionArn,
+        roleArn: schedulerRole.roleArn,
+      },
+    });
 
     // ── HTTP API Gateway ──────────────────────────────────────────
     const httpApi = new apigatewayv2.HttpApi(this, 'CatCareApi', {

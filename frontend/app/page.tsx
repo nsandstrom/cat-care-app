@@ -10,8 +10,33 @@ import { TaskCard } from '../components/TaskCard';
 
 const POLL_INTERVAL = 10_000; // 10 seconds
 
-function getTodayDate(): string {
-  return new Date().toISOString().slice(0, 10);
+/**
+ * Returns the current "household date" (YYYY-MM-DD in Europe/Stockholm).
+ * Before 04:00 Stockholm time the previous day is returned, because the
+ * household day doesn't roll over until 04:00.
+ */
+function getHouseholdDate(): string {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '0';
+  const hour = parseInt(get('hour'), 10);
+  // Before 04:00 → still on the previous household day
+  const effective = hour < 4 ? new Date(now.getTime() - 86_400_000) : now;
+  const ep = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Stockholm',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(effective);
+  const eg = (t: string) => ep.find((p) => p.type === t)?.value ?? '00';
+  return `${eg('year')}-${eg('month')}-${eg('day')}`;
 }
 
 function groupBySection(checklist: ChecklistItem[]): { section: string; items: ChecklistItem[] }[] {
@@ -34,7 +59,7 @@ export default function HomePage() {
   const [toggleLoading, setToggleLoading] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
-  const todayRef = useRef(getTodayDate());
+  const todayRef = useRef(getHouseholdDate());
 
   const fetchChecklist = useCallback(async () => {
     try {
