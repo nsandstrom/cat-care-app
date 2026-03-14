@@ -53,6 +53,9 @@ export function TaskCard({ item, now, onToggle, loading }: TaskCardProps) {
         >
           {item.name}
         </p>
+        {item.notes && (
+          <p className="text-[0.75rem] text-mid mt-0.5">{item.notes}</p>
+        )}
         <p className="font-mono text-[0.68rem] text-mid mt-0.5">
           {timeLabel}
           {status === 'done' && doneTime ? (
